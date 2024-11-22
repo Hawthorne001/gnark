@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 )
 
 // TODO @gbotrel hint[T FieldParams] would simplify this . Issue is when registering hint, if QuoRem[T] was declared
@@ -22,6 +23,7 @@ func GetHints() []solver.Hint {
 		InverseHint,
 		SqrtHint,
 		mulHint,
+		subPaddingHint,
 	}
 }
 
@@ -62,17 +64,17 @@ func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		return fmt.Errorf("result does not fit into output")
 	}
 	p := new(big.Int)
-	if err := recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
+	if err := limbs.Recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
 		return fmt.Errorf("recompose emulated order: %w", err)
 	}
 	x := new(big.Int)
-	if err := recompose(inputs[2+nbLimbs:], nbBits, x); err != nil {
+	if err := limbs.Recompose(inputs[2+nbLimbs:], nbBits, x); err != nil {
 		return fmt.Errorf("recompose value: %w", err)
 	}
 	if x.ModInverse(x, p) == nil {
 		return fmt.Errorf("input and modulus not relatively primes")
 	}
-	if err := decompose(x, nbBits, outputs); err != nil {
+	if err := limbs.Decompose(x, nbBits, outputs); err != nil {
 		return fmt.Errorf("decompose: %w", err)
 	}
 	return nil
@@ -113,15 +115,15 @@ func DivHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		return fmt.Errorf("result does not fit into output")
 	}
 	p := new(big.Int)
-	if err := recompose(inputs[4:4+nbLimbs], nbBits, p); err != nil {
+	if err := limbs.Recompose(inputs[4:4+nbLimbs], nbBits, p); err != nil {
 		return fmt.Errorf("recompose emulated order: %w", err)
 	}
 	nominator := new(big.Int)
-	if err := recompose(inputs[4+nbLimbs:4+nbLimbs+nbNomLimbs], nbBits, nominator); err != nil {
+	if err := limbs.Recompose(inputs[4+nbLimbs:4+nbLimbs+nbNomLimbs], nbBits, nominator); err != nil {
 		return fmt.Errorf("recompose nominator: %w", err)
 	}
 	denominator := new(big.Int)
-	if err := recompose(inputs[4+nbLimbs+nbNomLimbs:], nbBits, denominator); err != nil {
+	if err := limbs.Recompose(inputs[4+nbLimbs+nbNomLimbs:], nbBits, denominator); err != nil {
 		return fmt.Errorf("recompose denominator: %w", err)
 	}
 	res := new(big.Int).ModInverse(denominator, p)
@@ -130,7 +132,7 @@ func DivHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	}
 	res.Mul(res, nominator)
 	res.Mod(res, p)
-	if err := decompose(res, nbBits, outputs); err != nil {
+	if err := limbs.Decompose(res, nbBits, outputs); err != nil {
 		return fmt.Errorf("decompose division: %w", err)
 	}
 	return nil

@@ -164,21 +164,6 @@ func (f *Field[T]) Sum(inputs ...*Element[T]) *Element[T] {
 	return f.newInternalElement(limbs, overflow+uint(addOverflow))
 }
 
-// Reduce reduces a modulo the field order and returns it.
-func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
-	f.enforceWidthConditional(a)
-	if a.overflow == 0 {
-		// fast path - already reduced, omit reduction.
-		return a
-	}
-	// sanity check
-	if _, aConst := f.constantValue(a); aConst {
-		panic("trying to reduce a constant, which happen to have an overflow flag set")
-	}
-	// slow path - use hint to reduce value
-	return f.mulMod(a, f.One(), 0)
-}
-
 // Sub subtracts b from a and returns it. Reduces locally if wouldn't fit into
 // Element. Doesn't mutate inputs.
 func (f *Field[T]) Sub(a, b *Element[T]) *Element[T] {
@@ -204,9 +189,10 @@ func (f *Field[T]) sub(a, b *Element[T], nextOverflow uint) *Element[T] {
 
 	// first we have to compute padding to ensure that the subtraction does not
 	// underflow.
+	var fp T
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
 	limbs := make([]frontend.Variable, nbLimbs)
-	padLimbs := subPadding[T](b.overflow, uint(nbLimbs))
+	padLimbs := subPadding(fp.Modulus(), fp.BitsPerLimb(), b.overflow, uint(nbLimbs))
 	for i := range limbs {
 		limbs[i] = padLimbs[i]
 		if i < len(a.Limbs) {
